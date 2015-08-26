@@ -7,7 +7,7 @@ var gulp = require('gulp');
 var g_less = require('gulp-less'); //编译less
 //var g_concat = require('gulp-concat');  // 合并文件
 //var g_uglify = require('gulp-uglify');  // js压缩
-//var g_minifyCSS = require('gulp-minify-css'); //压缩css
+var g_minifyCSS = require('gulp-minify-css'); //压缩css
 //var g_spriter = require('ispriter'); //
 //var g_rename = require('gulp-rename');   // 重命名
 var g_gutil = require("gulp-util"); //错误提示
@@ -43,6 +43,11 @@ var src_rep = {
             src: 'css',
             map:true
         },
+        {
+            rep:'waphtml/static/_less',
+            src:'public/static/css-build',
+            map:false
+        }
         
     ],
     new_list:{ // 根据list分析
@@ -113,6 +118,7 @@ var src_rep = {
                     cascade: true
                 }));
                 // .pipe(gulp.dest(url[1]));
+        !ifmap && (gulp_task=gulp_task.pipe(g_minifyCSS()))
         ifmap && (gulp_task=gulp_task.pipe(sourcemaps.write()))
 
         _.each(url,function(v){
@@ -122,6 +128,34 @@ var src_rep = {
     }
 }
 src_rep.init();
+function fxwj(tmpPath,b2){
+    var data = fs.readFileSync(tmpPath, {
+        encoding: "utf-8"
+    });
+    var dirname=paths.dirname(tmpPath);
+    var import_list=data.match(/@import.+\.less["'];/g) || [];
+    
+    // console.log(fs.stat(filePath));
+    _.each(import_list,function(v,i){
+        var ph=v.match(/@\{.+?\}/g) || [];
+        _.each(ph,function(v2){
+            var _re=v2.replace(/[\{\} ]/g,"");
+            var ph2=data.match(new RegExp(_re+':(.+);')) || '';
+            v=v.replace(v2,ph2[1]);
+        });
+        v=v.replace('@import','');
+        v=v.replace(/["'; ]/g,'');
+        
+        
+        v=paths.resolve(dirname+"/"+v);
+
+        !src_rep.bk_list[v] && (src_rep.bk_list[v]={});
+        
+        b2=b2 || tmpPath;
+        src_rep.bk_list[v][b2]=b2;
+        fxwj(v,tmpPath);
+    });
+}
 function walk(path) {
     var files = fs.readdirSync(path);
     // lessList.push(path+"/*.less");
@@ -131,27 +165,10 @@ function walk(path) {
             stats = fs.statSync(tmpPath);
         if(!stats.isDirectory()){
             // src_rep.bk_list[tmpPath]=[];
+            if(item.indexOf(".less") !== -1){
 
-            var data = fs.readFileSync(tmpPath, {
-                encoding: "utf-8"
-            });
-
-            var import_list=data.match(/@import.+\.less["'];/g) || [];
-            
-            _.each(import_list,function(v,i){
-                var ph=v.match(/@\{.+?\}/g) || [];
-                _.each(ph,function(v2){
-                    var _re=v2.replace(/[\{\} ]/g,"");
-                    var ph2=data.match(new RegExp(_re+':(.+);')) || '';
-                    v=v.replace(v2,ph2[1]);
-                });
-                v=v.replace('@import','');
-                v=v.replace(/["'; ]/g,'');
-                v=paths.resolve(path+"/"+v);
-                src_rep.bk_list[v]=src_rep.bk_list[v] || {};
-                src_rep.bk_list[v][tmpPath]=tmpPath;
-            });
-            
+                fxwj(tmpPath);
+            }
         }
         if (item.indexOf("no_") === -1 && stats.isDirectory()) {
             walk(tmpPath);
